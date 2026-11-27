@@ -41,10 +41,14 @@ public class HttpHealthCheckService(
             stopwatch.Stop();
             var body = await response.Content.ReadAsStringAsync(timeoutCts.Token);
 
-            var status = InterpretResponse(response.StatusCode, body);
+            var (status, failingChecks) = InterpretResponse(response.StatusCode, body);
             string? description = null;
 
-            if (status == HealthStatus.Unhealthy)
+            if (failingChecks.Count > 0 && status != HealthStatus.Healthy)
+            {
+                description = $"{(status == HealthStatus.Unhealthy ? "Failing" : "Degraded")}: {string.Join(", ", failingChecks)}";
+            }
+            else if (status == HealthStatus.Unhealthy)
             {
                 description = $"Returned HTTP {(int)response.StatusCode}";
             }
@@ -81,38 +85,57 @@ public class HttpHealthCheckService(
     /// <summary>
     /// Non-2xx is unhealthy. For 2xx, honours a status reported in the body, which covers
     /// ASP.NET Core health checks (plain text "Healthy"/"Degraded"/"Unhealthy", or JSON with a "status" property).
+    /// When the JSON has an "entries" object (as /health/all does), the names of entries that aren't healthy
+    /// are returned, so the page can say which dependency is failing.
     /// </summary>
-    private static HealthStatus InterpretResponse(HttpStatusCode statusCode, string body)
+    private static (HealthStatus Status, IReadOnlyList<string> FailingChecks) InterpretResponse(HttpStatusCode statusCode, string body)
     {
-        if ((int)statusCode is < 200 or > 299)
-        {
-            return HealthStatus.Unhealthy;
-        }
-
         var reported = body.Trim();
+        var failingChecks = new List<string>();
 
         if (reported.StartsWith('{'))
         {
             try
             {
                 using var json = JsonDocument.Parse(reported);
-                if (json.RootElement.TryGetProperty("status", out var statusProperty) && statusProperty.ValueKind == JsonValueKind.String)
+                var root = json.RootElement;
+                reported = root.TryGetProperty("status", out var statusProperty) && statusProperty.ValueKind == JsonValueKind.String
+                    ? statusProperty.GetString() ?? ""
+                    : "";
+
+                if (root.TryGetProperty("entries", out var entries) && entries.ValueKind == JsonValueKind.Object)
                 {
-                    reported = statusProperty.GetString() ?? "";
+                    foreach (var entry in entries.EnumerateObject())
+                    {
+                        if (entry.Value.ValueKind == JsonValueKind.Object
+                            && entry.Value.TryGetProperty("status", out var entryStatus)
+                            && entryStatus.ValueKind == JsonValueKind.String
+                            && !string.Equals(entryStatus.GetString(), "healthy", StringComparison.OrdinalIgnoreCase))
+                        {
+                            failingChecks.Add(entry.Name);
+                        }
+                    }
                 }
             }
             catch (JsonException)
             {
                 // Not JSON we understand; fall back to the HTTP status code.
+                reported = "";
             }
         }
 
-        return reported.ToLowerInvariant() switch
+        if ((int)statusCode is < 200 or > 299)
+        {
+            return (HealthStatus.Unhealthy, failingChecks);
+        }
+
+        var status = reported.ToLowerInvariant() switch
         {
             "degraded" => HealthStatus.Degraded,
             "unhealthy" => HealthStatus.Unhealthy,
             _ => HealthStatus.Healthy
         };
+        return (status, failingChecks);
     }
 
     private DateTimeOffset Now() => timeProvider.GetUtcNow();

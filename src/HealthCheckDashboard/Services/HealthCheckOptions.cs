@@ -10,6 +10,9 @@ public class HealthCheckOptions
 {
     public const string SectionName = "HealthChecks";
 
+    /// <summary>Replaced in service URLs with the CDP environment name, e.g. dev or prod.</summary>
+    public const string EnvironmentToken = "{environment}";
+
     /// <summary>How long to wait for each service before marking it unhealthy.</summary>
     [Range(1, 120)]
     public int TimeoutSeconds { get; set; } = 5;
@@ -23,6 +26,19 @@ public class HealthCheckOptions
     public int DegradedThresholdMilliseconds { get; set; } = 1000;
 
     public List<MonitoredService> Services { get; set; } = [];
+
+    public void ApplyEnvironment(string? environment)
+    {
+        if (string.IsNullOrWhiteSpace(environment))
+        {
+            return;
+        }
+
+        foreach (var service in Services)
+        {
+            service.Url = service.Url.Replace(EnvironmentToken, environment.Trim().ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
 
 public class MonitoredService

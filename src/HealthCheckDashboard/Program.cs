@@ -15,7 +15,12 @@ builder.Services.AddRazorComponents();
 // Health checks of other services. All calls are made server-side; the browser only receives rendered HTML.
 builder.Services.AddOptions<HealthCheckOptions>()
     .Bind(builder.Configuration.GetSection(HealthCheckOptions.SectionName))
+    // CDP sets ENVIRONMENT (dev, test, perf-test, prod...). Service URLs use an {environment} token for it.
+    // Read the variable itself: configuration["ENVIRONMENT"] also picks up ASPNETCORE_ENVIRONMENT ("Production").
+    .PostConfigure(options => options.ApplyEnvironment(Environment.GetEnvironmentVariable("ENVIRONMENT")))
     .ValidateDataAnnotations()
+    .Validate(options => options.Services.TrueForAll(s => !s.Url.Contains(HealthCheckOptions.EnvironmentToken)),
+        $"A health check URL contains {HealthCheckOptions.EnvironmentToken} but the ENVIRONMENT variable is not set.")
     .ValidateOnStart();
 builder.Services.AddHttpClient(HttpHealthCheckService.HttpClientName, client =>
 {
@@ -52,16 +57,18 @@ if (app.Environment.IsDevelopment())
 {
     // Fake downstream services so the dashboard has something to call locally.
     // Referenced from appsettings.Development.json. Never mapped outside Development.
+    // Responses mimic the ASP.NET Core health checks JSON that /health/all returns.
     var fakes = app.MapGroup("/dev/fake-services");
-    fakes.MapGet("/healthy", () => Results.Text("Healthy"));
-    fakes.MapGet("/healthy-json", () => Results.Json(new { status = "Healthy" }));
-    fakes.MapGet("/degraded", () => Results.Text("Degraded"));
-    fakes.MapGet("/slow", async () =>
+    fakes.MapGet("/trade-gateway/health/all", () => Results.Json(new
     {
-        await Task.Delay(1500);
-        return Results.Text("Healthy");
-    });
-    fakes.MapGet("/unhealthy", () => Results.Text("Unhealthy", statusCode: StatusCodes.Status503ServiceUnavailable));
+        status = "Healthy",
+        entries = new { mongo = new { status = "Healthy" }, sqs = new { status = "Healthy" } }
+    }));
+    fakes.MapGet("/trade-gateway-publisher/health/all", () => Results.Json(new
+    {
+        status = "Degraded",
+        entries = new { mongo = new { status = "Healthy" }, sns = new { status = "Degraded" } }
+    }));
 }
 
 app.Run();

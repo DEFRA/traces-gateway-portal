@@ -52,11 +52,26 @@ Use `__` for nesting in environment variables, for example `HealthChecks__Timeou
 
 ### Health checks
 
-The Service health page checks every service in the `HealthChecks:Services` list:
+The Service health page checks every service in the `HealthChecks:Services` list in
+[appsettings.json](src/HealthCheckDashboard/appsettings.json). These are currently:
+
+| Service | URL |
+| --- | --- |
+| Trade Gateway | `https://trade-gateway.{environment}.cdp-int.defra.cloud/health/all` |
+| Trade Gateway Publisher | `https://trade-gateway-publisher.{environment}.cdp-int.defra.cloud/health/all` |
+
+`{environment}` is replaced with the `ENVIRONMENT` variable, which CDP sets (`dev`, `test`, `prod` and so on).
+The app won't start if a URL contains `{environment}` and `ENVIRONMENT` isn't set.
+
+If a service returns ASP.NET Core health check JSON with `entries`, the page names the checks that
+aren't healthy, for example "Degraded: sns".
+
+To override a URL, or add a service, use environment variables:
 
 ```bash
-HealthChecks__Services__0__Name="Your backend"
-HealthChecks__Services__0__Url="https://your-backend.example/health"
+HealthChecks__Services__0__Url="http://localhost:8085/health/all"
+HealthChecks__Services__2__Name="Another service"
+HealthChecks__Services__2__Url="https://another-service.{environment}.cdp-int.defra.cloud/health"
 ```
 
 | Setting | Default | Purpose |

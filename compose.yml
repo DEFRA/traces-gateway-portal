@@ -46,9 +46,11 @@ services:
     environment:
       PORT: 3000
       ASPNETCORE_ENVIRONMENT: Production
-      # Services shown on the Service health page, e.g.:
-      # HealthChecks__Services__0__Name: Your backend
-      # HealthChecks__Services__0__Url: http://your-backend:3555/health
+      # Fills {environment} in the health check URLs. CDP sets this when deployed.
+      ENVIRONMENT: local
+      # cdp-int hosts aren't reachable locally, so point the checks at local containers, e.g.:
+      # HealthChecks__Services__0__Url: http://trade-gateway:8085/health/all
+      # HealthChecks__Services__1__Url: http://trade-gateway-publisher:8085/health/all
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
       interval: 10s
