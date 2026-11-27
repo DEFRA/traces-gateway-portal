@@ -1,0 +1,42 @@
+@* A link inside GovUkServiceNavigation. Marks itself as the current page using the
+   markup from https://design-system.service.gov.uk/components/service-navigation/ *@
+@inject NavigationManager Navigation
+
+<li class="govuk-service-navigation__item @(IsActive ? "govuk-service-navigation__item--active" : null)">
+    <a class="govuk-service-navigation__link" href="@Href" aria-current="@(IsActive ? "page" : null)">
+        @if (IsActive)
+        {
+            <strong class="govuk-service-navigation__active-fallback">@Text</strong>
+        }
+        else
+        {
+            @Text
+        }
+    </a>
+</li>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    /// <summary>When false (the default), the item is also active on pages below Href, e.g. /service-health/details.</summary>
+    [Parameter] public bool ExactMatch { get; set; }
+
+    private bool IsActive
+    {
+        get
+        {
+            var current = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/');
+            var target = Href.TrimEnd('/');
+            if (target.Length == 0)
+            {
+                target = "/";
+            }
+
+            return ExactMatch || target == "/"
+                ? string.Equals(current, target, StringComparison.OrdinalIgnoreCase)
+                : current.Equals(target, StringComparison.OrdinalIgnoreCase)
+                  || current.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+}

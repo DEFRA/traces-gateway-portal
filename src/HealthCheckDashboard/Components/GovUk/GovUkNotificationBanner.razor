@@ -1,0 +1,25 @@
+@* https://design-system.service.gov.uk/components/notification-banner/ *@
+<div class="govuk-notification-banner @(Success ? "govuk-notification-banner--success" : null)"
+     role="@(Success ? "alert" : "region")"
+     aria-labelledby="@_titleId"
+     data-module="govuk-notification-banner">
+    <div class="govuk-notification-banner__header">
+        <h2 class="govuk-notification-banner__title" id="@_titleId">@(Title ?? (Success ? "Success" : "Important"))</h2>
+    </div>
+    <div class="govuk-notification-banner__content">
+        @if (Heading is not null)
+        {
+            <p class="govuk-notification-banner__heading">@Heading</p>
+        }
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    private readonly string _titleId = $"govuk-notification-banner-title-{Guid.NewGuid():N}";
+
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public bool Success { get; set; }
+    [Parameter] public RenderFragment? Heading { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,29 @@
+﻿@page "/Error"
+@using System.Diagnostics
+
+@* GOV.UK "There is a problem with the service" pattern:
+   https://design-system.service.gov.uk/patterns/problem-with-the-service-pages/
+   Error details are logged by ASP.NET Core and never shown to users. *@
+
+<PageTitle>Sorry, there is a problem with the service – @AppInfo.ServiceName</PageTitle>
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-l">Sorry, there is a problem with the service</h1>
+        <p class="govuk-body">Try again later.</p>
+        @if (!string.IsNullOrEmpty(RequestId))
+        {
+            <p class="govuk-body">If you contact support about this problem, give them this reference: <code>@RequestId</code></p>
+        }
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

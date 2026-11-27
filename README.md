@@ -4,193 +4,156 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_traces-gateway-portal&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=DEFRA_traces-gateway-portal)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=DEFRA_traces-gateway-portal&metric=coverage)](https://sonarcloud.io/summary/new_code?id=DEFRA_traces-gateway-portal)
 
-Core delivery platform Node.js Frontend Template.
+A Blazor (.NET 10) frontend for the Core Delivery Platform (CDP), built with the
+[GOV.UK Design System](https://design-system.service.gov.uk/).
 
 - [Requirements](#requirements)
-  - [Node.js](#nodejs)
-- [Server-side Caching](#server-side-caching)
-- [Redis](#redis)
-- [Local Development](#local-development)
-  - [Setup](#setup)
-  - [Development](#development)
-  - [Production](#production)
-  - [Npm scripts](#npm-scripts)
-  - [Update dependencies](#update-dependencies)
-  - [Formatting](#formatting)
-    - [Windows prettier issue](#windows-prettier-issue)
+- [Project structure](#project-structure)
+- [Configuration](#configuration)
+  - [Health checks](#health-checks)
+  - [Proxy](#proxy)
+- [Local development](#local-development)
 - [Docker](#docker)
-  - [Development image](#development-image)
-  - [Production image](#production-image)
   - [Docker Compose](#docker-compose)
+- [GitHub workflows](#github-workflows)
   - [Dependabot](#dependabot)
   - [SonarCloud](#sonarcloud)
+- [GOV.UK Frontend](#govuk-frontend)
 - [Licence](#licence)
-  - [About the licence](#about-the-licence)
 
 ## Requirements
 
-### Node.js
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Docker, to build and run the container image
 
-Please install Node Version Manager [nvm](https://github.com/creationix/nvm)
+## Project structure
 
-To use the correct version of Node.js for this application, via nvm:
+| Path | Contents |
+| --- | --- |
+| `TracesGatewayPortal.slnx` | Solution file |
+| `src/HealthCheckDashboard/Components/Pages` | One Razor component per page |
+| `src/HealthCheckDashboard/Components/GovUk` | Razor wrappers for GOV.UK Design System components |
+| `src/HealthCheckDashboard/Components/Layout` | Page layout: skip link, service navigation, phase banner, footer |
+| `src/HealthCheckDashboard/Services` | Server-side health checks of other services |
+| `src/HealthCheckDashboard/wwwroot` | Static files, including GOV.UK Frontend CSS, JS, fonts and images |
 
-```bash
-cd traces-gateway-portal
-nvm use
-```
+Pages use static server-side rendering: all code, including calls to other services, runs on the server
+and the browser only receives HTML.
 
-## Server-side Caching
+## Configuration
 
-We use Catbox for server-side caching. By default the service will use CatboxRedis when deployed and CatboxMemory for
-local development.
-You can override the default behaviour by setting the `SESSION_CACHE_ENGINE` environment variable to either `redis` or
-`memory`.
+Settings come from `appsettings.json`, `appsettings.{Environment}.json` and environment variables.
+Use `__` for nesting in environment variables, for example `HealthChecks__TimeoutSeconds=5`.
 
-Please note: CatboxMemory (`memory`) is _not_ suitable for production use! The cache will not be shared between each
-instance of the service and it will not persist between restarts.
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` in the container | Port the service listens on |
+| `ASPNETCORE_ENVIRONMENT` | `Production` in the container | `Development` enables the fake services below |
 
-## Redis
+### Health checks
 
-Redis is an in-memory key-value store. Every instance of a service has access to the same Redis key-value store similar
-to how services might have a database (or MongoDB). All frontend services are given access to a namespaced prefixed that
-matches the service name. e.g. `my-service` will have access to everything in Redis that is prefixed with `my-service`.
+The Service health page checks every service in the `HealthChecks:Services` list in
+[appsettings.json](src/HealthCheckDashboard/appsettings.json). These are currently:
 
-If your service does not require a session cache to be shared between instances or if you don't require Redis, you can
-disable setting `SESSION_CACHE_ENGINE=false` or changing the default value in `src/config/index.js`.
+| Service | URL |
+| --- | --- |
+| Trade Gateway | `https://trade-gateway.{environment}.cdp-int.defra.cloud/health/all` |
+| Trade Gateway Publisher | `https://trade-gateway-publisher.{environment}.cdp-int.defra.cloud/health/all` |
 
-## Proxy
+`{environment}` is replaced with the `ENVIRONMENT` variable, which CDP sets (`dev`, `test`, `prod` and so on).
+The app won't start if a URL contains `{environment}` and `ENVIRONMENT` isn't set.
 
-We are using forward-proxy which is set up by default. Services are automatically configured with the proxy environment variables when deployed.
+If a service returns ASP.NET Core health check JSON with `entries`, the page names the checks that
+aren't healthy, for example "Degraded: sns".
 
-Node.js 24 uses these variables to route outbound HTTP(S) requests through the proxy:
-
-NODE_USE_ENV_PROXY=1
-HTTPS_PROXY=...
-NO_PROXY=...
-
-No additional proxy configuration is required in the service.
-
-## Local Development
-
-### Setup
-
-Install application dependencies:
+To override a URL, or add a service, use environment variables:
 
 ```bash
-npm install
+HealthChecks__Services__0__Url="http://localhost:8085/health/all"
+HealthChecks__Services__2__Name="Another service"
+HealthChecks__Services__2__Url="https://another-service.{environment}.cdp-int.defra.cloud/health"
 ```
 
-### Git hooks
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `HealthChecks__TimeoutSeconds` | `5` | How long to wait for each service |
+| `HealthChecks__CacheSeconds` | `20` | How long results are reused before checking again |
+| `HealthChecks__DegradedThresholdMilliseconds` | `1000` | Healthy responses slower than this show as degraded |
 
-Install git hooks (optional)
+The URLs are only used server-side and are never sent to the browser. In `Development`, the app serves fake
+services under `/dev/fake-services/...`, which `appsettings.Development.json` points at.
+
+The service's own health endpoint is `/health`, which the platform uses to check the service is up.
+
+### Logging
+
+Logging uses Serilog, set up the same way as trade-gateway ([CdpLogging.cs](src/HealthCheckDashboard/Logging/CdpLogging.cs)):
+
+- When deployed (`appsettings.json`), logs are written to the console as ECS JSON (`EcsTextFormatter`), which is
+  the format CDP's log pipeline expects. In `Development`, they're plain text.
+- Each entry includes `service.version` (from `SERVICE_VERSION`, set by CDP), the HTTP request details, and
+  `CorrelationId` from the `x-cdp-request-id` header (`TraceHeader` setting).
+- The `x-cdp-request-id` header is passed on to the services the health checks call, so a request can be traced
+  across services.
+- Log levels are set in the `Serilog` section, for example `Serilog__MinimumLevel__Default=Debug`.
+
+### Proxy
+
+CDP configures `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` when the service is deployed. .NET's `HttpClient` reads
+these automatically, so outbound calls go through the forward proxy with no extra configuration.
+
+## Local development
 
 ```bash
-npm run git:hooks
+dotnet run --project src/HealthCheckDashboard
 ```
 
-### Development
-
-To run the application in `development` mode run:
-
-```bash
-npm run dev
-```
-
-### Production
-
-To mimic the application running in `production` mode locally run:
-
-```bash
-npm start
-```
-
-### Npm scripts
-
-All available Npm scripts can be seen in [package.json](./package.json)
-To view them in your command line run:
-
-```bash
-npm run
-```
-
-### Update dependencies
-
-To update dependencies use [npm-check-updates](https://github.com/raineorshine/npm-check-updates):
-
-> The following script is a good start. Check out all the options on
-> the [npm-check-updates](https://github.com/raineorshine/npm-check-updates)
-
-```bash
-ncu --interactive --format group
-```
-
-### Formatting
-
-#### Windows prettier issue
-
-If you are having issues with formatting of line breaks on Windows update your global git config by running:
-
-```bash
-git config --global core.autocrlf false
-```
+Then open <http://localhost:5183>.
 
 ## Docker
 
-### Development image
-
-> [!TIP]
-> For Apple Silicon users, you may need to add `--platform linux/amd64` to the `docker run` command to ensure
-> compatibility fEx: `docker build --platform=linux/arm64 --no-cache --tag traces-gateway-portal`
-
-Build:
+The [Dockerfile](Dockerfile) follows the CDP .NET template and uses DEFRA's base images:
+`defradigital/dotnetcore-development` to build and `defradigital/dotnetcore` to run. The production image
+includes `curl`, which the platform health check needs, and runs as the non-root `dotnet` user on port 3000.
 
 ```bash
-docker build --target development --no-cache --tag traces-gateway-portal:development .
-```
-
-Run:
-
-```bash
-docker run -p 3000:3000 traces-gateway-portal:development
-```
-
-### Production image
-
-Build:
-
-```bash
-docker build --no-cache --tag traces-gateway-portal .
-```
-
-Run:
-
-```bash
+docker build --tag traces-gateway-portal .
 docker run -p 3000:3000 traces-gateway-portal
 ```
 
 ### Docker Compose
 
-A local environment with:
-
-- Floci (replacing Localstack) for AWS services (S3, SQS)
-- Redis
-- MongoDB
-- This service.
-- A commented out backend example.
-
 ```bash
 docker compose up --build -d
 ```
 
+This starts the portal on <http://localhost:3000>, plus local floci (AWS), Redis and MongoDB, which the portal
+does not use yet.
+
+## GitHub workflows
+
+| Workflow | When it runs | What it does |
+| --- | --- | --- |
+| `check-pull-request.yml` | Pull requests to `main` | Builds with warnings as errors, checks for vulnerable NuGet packages, test-builds the Docker image |
+| `publish.yml` | Pushes to `main` | Builds, then builds and publishes the image with `DEFRA/cdp-build-action` |
+| `publish-hotfix.yml` | Manually | Builds, then publishes a hotfix image |
+
 ### Dependabot
 
-We have added an example dependabot configuration file to the repository. You can enable it by renaming
-the [.github/example.dependabot.yml](.github/example.dependabot.yml) to `.github/dependabot.yml`
+To enable Dependabot, rename [.github/example.dependabot.yml](.github/example.dependabot.yml) to
+`.github/dependabot.yml`. It updates NuGet packages, the Docker base images and GitHub Actions.
 
 ### SonarCloud
 
-Instructions for setting up SonarCloud can be found in [sonar-project.properties](./sonar-project.properties).
+Instructions for setting up SonarCloud are in
+[how-to/sonarcloud.md](https://github.com/DEFRA/cdp-documentation/blob/main/how-to/sonarcloud.md).
+The SonarCloud steps in the workflows are commented out until it is set up.
+
+## GOV.UK Frontend
+
+GOV.UK Frontend's compiled CSS, JavaScript, fonts and images are checked in under `src/HealthCheckDashboard/wwwroot`
+(currently version 5.14.0). To upgrade, copy `dist/govuk/govuk-frontend.min.css`, `govuk-frontend.min.js` and the
+`assets` folder from the new [govuk-frontend](https://www.npmjs.com/package/govuk-frontend) npm package.
 
 ## Licence
 

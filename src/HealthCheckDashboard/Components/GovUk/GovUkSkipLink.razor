@@ -1,0 +1,7 @@
+@* https://design-system.service.gov.uk/components/skip-link/ *@
+<a href="@Href" class="govuk-skip-link" data-module="govuk-skip-link">@Text</a>
+
+@code {
+    [Parameter] public string Href { get; set; } = "#main-content";
+    [Parameter] public string Text { get; set; } = "Skip to main content";
+}
