@@ -38,25 +38,28 @@ services:
 
   ################################################################################
 
-  # The Blazor frontend. It doesn't use floci, redis or mongodb yet, so it doesn't depend on them.
-  traces-gateway-portal:
+  your-frontend:
     build: ./
     ports:
       - '3000:3000'
+    links:
+      - 'floci:floci'
+      - 'redis:redis'
+    depends_on:
+      floci:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - 'compose/aws.env'
     environment:
       PORT: 3000
-      ASPNETCORE_ENVIRONMENT: Production
-      # Fills {environment} in the health check URLs. CDP sets this when deployed.
-      ENVIRONMENT: local
-      # cdp-int hosts aren't reachable locally, so point the checks at local containers, e.g.:
-      # HealthChecks__Services__0__Url: http://trade-gateway:8085/health/all
-      # HealthChecks__Services__1__Url: http://trade-gateway-publisher:8085/health/all
-    healthcheck:
-      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      NODE_ENV: production
+      REDIS_HOST: redis
+      LOG_FORMAT: pino-pretty
+      SESSION_COOKIE_SECURE: false
+      USE_SINGLE_INSTANCE_CACHE: true
+      REDIS_TLS: false
     networks:
       - cdp-tenant
 

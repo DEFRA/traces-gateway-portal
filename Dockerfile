@@ -1,49 +1,51 @@
-# Follows the CDP .NET template (DEFRA/cdp-dotnet-backend-template), using DEFRA's .NET base images.
-ARG PARENT_VERSION=2.1.9-dotnet10.0
-# CDP frontends listen on 3000.
+ARG PARENT_VERSION=3.2.8-node24.22.3
 ARG PORT=3000
+ARG PORT_DEBUG=9229
 
-# ---- Build ----
-FROM defradigital/dotnetcore-development:${PARENT_VERSION} AS build
+FROM defradigital/node-development:${PARENT_VERSION} AS development
 ARG PARENT_VERSION
-LABEL uk.gov.defra.ffc.parent-image=defradigital/dotnetcore-development:${PARENT_VERSION}
-
-WORKDIR /home/dotnet
-
-# Restore first so the package layer is cached between source-only changes.
-COPY --chown=dotnet:dotnet src/HealthCheckDashboard/HealthCheckDashboard.csproj src/HealthCheckDashboard/
-RUN dotnet restore src/HealthCheckDashboard/HealthCheckDashboard.csproj
-
-COPY --chown=dotnet:dotnet src/ src/
-RUN dotnet publish src/HealthCheckDashboard/HealthCheckDashboard.csproj \
-    -c Release \
-    -o /home/dotnet/publish \
-    --no-restore \
-    /p:UseAppHost=false
-
-# ---- Production ----
-FROM defradigital/dotnetcore:${PARENT_VERSION} AS production
-ARG PARENT_VERSION
-LABEL uk.gov.defra.ffc.parent-image=defradigital/dotnetcore:${PARENT_VERSION}
-
-# CDP PLATFORM HEALTHCHECK REQUIREMENT: curl.
-# icu-libs/icu-data-full keep real cultures (en-GB); tzdata lets the app show UK times.
-USER root
-RUN apk add --no-cache curl icu-libs icu-data-full tzdata
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
-
-WORKDIR /app
-COPY --from=build /home/dotnet/publish .
-USER dotnet
+LABEL uk.gov.defra.ffc.parent-image=defradigital/node-development:${PARENT_VERSION}
 
 ENV TZ="Europe/London"
-ENV ASPNETCORE_ENVIRONMENT=Production
-# TLS is terminated by the platform; trust X-Forwarded-* so the app sees the original scheme and host.
-ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+
+ARG PORT
+ARG PORT_DEBUG
+ENV PORT=${PORT}
+EXPOSE ${PORT} ${PORT_DEBUG}
+
+COPY --chown=node:node --chmod=755 package*.json ./
+RUN npm install
+COPY --chown=node:node --chmod=755 . .
+RUN npm run build:frontend
+
+CMD [ "npm", "run", "docker:dev" ]
+
+FROM development AS production_build
+
+ENV NODE_ENV=production
+
+RUN npm run build:frontend
+
+FROM defradigital/node:${PARENT_VERSION} AS production
+ARG PARENT_VERSION
+LABEL uk.gov.defra.ffc.parent-image=defradigital/node:${PARENT_VERSION}
+
+ENV TZ="Europe/London"
+
+# Add curl to template.
+# CDP PLATFORM HEALTHCHECK REQUIREMENT
+USER root
+RUN apk add --no-cache curl
+USER node
+
+COPY --from=production_build /home/node/package*.json ./
+COPY --from=production_build /home/node/src ./src/
+COPY --from=production_build /home/node/.public/ ./.public/
+
+RUN npm ci --omit=dev
 
 ARG PORT
 ENV PORT=${PORT}
-ENV ASPNETCORE_HTTP_PORTS=${PORT}
 EXPOSE ${PORT}
 
-ENTRYPOINT ["dotnet", "HealthCheckDashboard.dll"]
+CMD [ "node", "src" ]

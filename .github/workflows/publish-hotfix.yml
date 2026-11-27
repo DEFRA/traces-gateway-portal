@@ -27,15 +27,17 @@ jobs:
         with:
           fetch-depth: 0 # Depth 0 is required for branch-based versioning
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+      - name: Test code and Create Test Coverage Reports
+        uses: actions/setup-node@v7
         with:
-          dotnet-version: 10.0.x
-
-      - name: Build
-        run: |
-          dotnet restore TracesGatewayPortal.slnx
-          dotnet build TracesGatewayPortal.slnx --configuration Release --no-restore -warnaserror
+          node-version-file: .nvmrc
+          cache: npm
+      - run: |
+          npm ci
+          npm run build:frontend
+          npm run format:check
+          npm run lint
+          npm test
 
       - name: Publish Hot Fix
         uses: DEFRA/cdp-build-action/build-hotfix@main
