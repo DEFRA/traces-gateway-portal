@@ -1,0 +1,46 @@
+@page "/accessibility-statement"
+
+@* Follows the structure of the GOV.UK sample accessibility statement:
+   https://www.gov.uk/government/publications/sample-accessibility-statement
+   Update it once the service has been tested; it must describe the service as it really is. *@
+
+<PageTitle>Accessibility statement – @AppInfo.ServiceName</PageTitle>
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-xl">Accessibility statement for @AppInfo.ServiceName</h1>
+
+        <GovUkWarningText>This is a draft statement. The service has not yet been tested for accessibility.</GovUkWarningText>
+
+        <p class="govuk-body">This accessibility statement applies to the @AppInfo.ServiceName service.</p>
+        <p class="govuk-body">This service is run by @AppInfo.OrganisationName. We want as many people as possible to be able to use it. For example, that means you should be able to:</p>
+        <ul class="govuk-list govuk-list--bullet">
+            <li>change colours, contrast levels and fonts using browser or device settings</li>
+            <li>zoom in up to 400% without the text spilling off the screen</li>
+            <li>navigate the service using just a keyboard</li>
+            <li>navigate the service using speech recognition software</li>
+            <li>listen to the service using a screen reader</li>
+        </ul>
+        <p class="govuk-body">We've also made the text as simple as possible to understand.</p>
+        <p class="govuk-body"><a class="govuk-link" href="https://mcmw.abilitynet.org.uk/" rel="noreferrer noopener" target="_blank">AbilityNet (opens in new tab)</a> has advice on making your device easier to use if you have a disability.</p>
+
+        <h2 class="govuk-heading-l">How accessible this service is</h2>
+        <p class="govuk-body">The service is built with the GOV.UK Design System, whose components are designed and tested to be accessible. The service itself has not yet been tested, so we do not yet know of any parts that are not fully accessible.</p>
+
+        <h2 class="govuk-heading-l">Feedback and contact information</h2>
+        <p class="govuk-body">If you find a problem with the accessibility of this service, or need information in a different format, email @AppInfo.ContactEmail.</p>
+        <p class="govuk-body">We'll consider your request and get back to you as soon as we can.</p>
+
+        <h2 class="govuk-heading-l">Enforcement procedure</h2>
+        <p class="govuk-body">The Equality and Human Rights Commission (EHRC) is responsible for enforcing the Public Sector Bodies (Websites and Mobile Applications) (No. 2) Accessibility Regulations 2018 (the 'accessibility regulations'). If you're not happy with how we respond to your complaint, <a class="govuk-link" href="https://www.equalityadvisoryservice.com/" rel="noreferrer noopener" target="_blank">contact the Equality Advisory and Support Service (EASS) (opens in new tab)</a>.</p>
+
+        <h2 class="govuk-heading-l">Technical information about this service's accessibility</h2>
+        <p class="govuk-body">@AppInfo.OrganisationName is committed to making its websites and services accessible, in accordance with the Public Sector Bodies (Websites and Mobile Applications) (No. 2) Accessibility Regulations 2018.</p>
+
+        <h3 class="govuk-heading-m">Compliance status</h3>
+        <p class="govuk-body">This service has not yet been assessed against the <a class="govuk-link" href="https://www.w3.org/TR/WCAG22/" rel="noreferrer noopener" target="_blank">Web Content Accessibility Guidelines version 2.2 (opens in new tab)</a> AA standard.</p>
+
+        <h2 class="govuk-heading-l">Preparation of this accessibility statement</h2>
+        <p class="govuk-body">This statement was prepared on @AppInfo.AccessibilityStatementPrepared.</p>
+    </div>
+</div>

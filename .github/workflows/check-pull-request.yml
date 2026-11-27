@@ -18,26 +18,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Test code and Create Test Coverage Reports
-        uses: actions/setup-node@v7
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          dotnet-version: 10.0.x
 
-      - name: Security audit
-        run: npm run security-audit
+      - name: Build
+        run: |
+          dotnet restore TracesGatewayPortal.slnx
+          dotnet build TracesGatewayPortal.slnx --configuration Release --no-restore -warnaserror
 
-      - run: |
-          npm ci
-          npm run build:frontend
-          npm run format:check
-          npm run lint
-          npm test
+      - name: Check for vulnerable NuGet packages
+        run: |
+          dotnet list TracesGatewayPortal.slnx package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          ! grep -q -i "has the following vulnerable packages" vulnerable.txt
 
       - name: Test Docker Image Build
         run: |
           set +e
-          docker build --no-cache --tag cdp-node-frontend-template .
+          docker build --no-cache --tag traces-gateway-portal .
           exit $?
 
 #      - name: SonarCloud Scan
