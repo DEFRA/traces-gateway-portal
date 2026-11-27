@@ -1,3 +1,13 @@
-node_modules
+**/bin
+**/obj
+**/.vs
+**/*.csproj.user
+.git
+.github
+.idea
+.vscode
+.claude
+compose
+compose.yml
 Dockerfile
-coverage
+README.md

@@ -1,12 +1,15 @@
 .DS_Store
-.npm/
 .vscode
 .idea
-.public
-node_modules
-npm-debug.log
-coverage
-.cache
+.vs
 .envrc
-tsconfig.tsbuildinfo
 .env
+.claude/settings.local.json
+
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+coverage/

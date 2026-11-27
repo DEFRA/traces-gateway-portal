@@ -1,0 +1,12 @@
+@* https://design-system.service.gov.uk/components/phase-banner/ *@
+<div class="govuk-phase-banner">
+    <p class="govuk-phase-banner__content">
+        <strong class="govuk-tag govuk-phase-banner__content__tag">@Phase</strong>
+        <span class="govuk-phase-banner__text">@ChildContent</span>
+    </p>
+</div>
+
+@code {
+    [Parameter] public string Phase { get; set; } = "Alpha";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

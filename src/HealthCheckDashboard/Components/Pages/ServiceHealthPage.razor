@@ -1,0 +1,112 @@
+﻿@page "/service-health"
+@attribute [StreamRendering]
+@using HealthCheckDashboard.Models
+@using HealthCheckDashboard.Services
+@inject IHealthCheckService HealthCheckService
+
+<PageTitle>Service health – @AppInfo.ServiceName</PageTitle>
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+        <h1 class="govuk-heading-xl">Service health</h1>
+        <p class="govuk-body-l">Current status of the services this dashboard monitors.</p>
+
+        @if (_results is null)
+        {
+            <p class="govuk-body" role="status">Checking services…</p>
+        }
+        else if (_results.Count == 0)
+        {
+            <GovUkInsetText>No services are configured. Add them to the <code>HealthChecks:Services</code> setting.</GovUkInsetText>
+        }
+        else
+        {
+            @if (Unhealthy > 0)
+            {
+                <GovUkNotificationBanner>
+                    <Heading>@Unhealthy @(Unhealthy == 1 ? "service is" : "services are") unhealthy.</Heading>
+                </GovUkNotificationBanner>
+            }
+
+            <div class="app-health-summary govuk-!-margin-bottom-6">
+                <GovUkTag Colour="TagColour.Green">@Healthy healthy</GovUkTag>
+                <GovUkTag Colour="TagColour.Yellow">@Degraded degraded</GovUkTag>
+                <GovUkTag Colour="TagColour.Red">@Unhealthy unhealthy</GovUkTag>
+            </div>
+
+            <GovUkTable Caption="Health checks" CaptionSize="m">
+                <Head>
+                    <tr class="govuk-table__row">
+                        <th scope="col" class="govuk-table__header">Service</th>
+                        <th scope="col" class="govuk-table__header">Status</th>
+                        <th scope="col" class="govuk-table__header govuk-table__header--numeric">Response time</th>
+                    </tr>
+                </Head>
+                <Body>
+                    @foreach (var result in _results)
+                    {
+                        <tr class="govuk-table__row">
+                            <th scope="row" class="govuk-table__header">
+                                @result.Name
+                                @if (!string.IsNullOrEmpty(result.Description))
+                                {
+                                    <span class="app-health-table__detail">@result.Description</span>
+                                }
+                            </th>
+                            <td class="govuk-table__cell">
+                                <GovUkTag Colour="@TagColourFor(result.Status)">@result.Status</GovUkTag>
+                            </td>
+                            <td class="govuk-table__cell govuk-table__cell--numeric">
+                                @(result.ResponseTime is { } time ? $"{time.TotalMilliseconds:N0} ms" : "–")
+                            </td>
+                        </tr>
+                    }
+                </Body>
+            </GovUkTable>
+
+            <p class="govuk-body">Last checked at @FormatTime(_results.Max(r => r.CheckedAt)).</p>
+
+            <GovUkButton Href="/service-health" Secondary="true">Check again</GovUkButton>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly TimeZoneInfo UkTimeZone = FindUkTimeZone();
+
+    private IReadOnlyList<ServiceHealth>? _results;
+
+    private int Healthy => _results?.Count(r => r.Status == HealthStatus.Healthy) ?? 0;
+    private int Degraded => _results?.Count(r => r.Status == HealthStatus.Degraded) ?? 0;
+    private int Unhealthy => _results?.Count(r => r.Status == HealthStatus.Unhealthy) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _results = await HealthCheckService.GetHealthAsync();
+    }
+
+    private static TagColour TagColourFor(HealthStatus status) => status switch
+    {
+        HealthStatus.Healthy => TagColour.Green,
+        HealthStatus.Degraded => TagColour.Yellow,
+        HealthStatus.Unhealthy => TagColour.Red,
+        _ => TagColour.Grey
+    };
+
+    // GOV.UK style for times: "3:04:05pm". Shown in UK time regardless of the server's time zone.
+    private static string FormatTime(DateTimeOffset value) =>
+        TimeZoneInfo.ConvertTime(value, UkTimeZone).ToString("h:mm:sstt").ToLowerInvariant();
+
+    private static TimeZoneInfo FindUkTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            // e.g. minimal container images without tzdata.
+            return TimeZoneInfo.Utc;
+        }
+    }
+}
